@@ -1,3 +1,4 @@
+using DG.Tweening;
 using TMPro;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -15,15 +16,22 @@ public class DiceBattleManager : MonoBehaviour
     [SerializeField] private TMP_Text[] playerDiceTexts;
     [SerializeField] private TMP_Text playerHpText;
     [SerializeField] private TMP_Text playerResultText;
+    [SerializeField] private TMP_Text playerTakeDemageText;
 
-    [Header("Compute")]
+    [Header("Computer")]
     [SerializeField] private int computerMaxHp;
     [SerializeField] private TMP_Text[] computerDiceTexts;
     [SerializeField] private TMP_Text computerHpText;
     [SerializeField] private TMP_Text computerResultText;
+    [SerializeField] private TMP_Text computerTakeDemageText;
 
     [Header("Result UI")]
     [SerializeField] private TMP_Text resultText;
+
+    [Header("TakeDemage Tween")]
+    [SerializeField] private float takeDemageTextDuration = 1f;
+    [SerializeField] private float takeDemageMoveValue = 100f;
+    [SerializeField] private Ease takeDemageTextEase = Ease.OutQuart;
 
     private int[] computerDiceNumbers;
     private int[] playerDiceNumbers;
@@ -34,11 +42,19 @@ public class DiceBattleManager : MonoBehaviour
     private int playerResult;
     private int computerResult;
 
+    private Vector3 startPlayerTakeDemageTextPos;
+    private Vector3 startComputerTakeDemageTextPos;
+
+    private Tween takeDemageTextTween;
+
 
     private void Start()
     {
         computerDiceNumbers = new int[computerDiceTexts.Length];
         playerDiceNumbers = new int[playerDiceTexts.Length];
+
+        startPlayerTakeDemageTextPos = playerTakeDemageText.transform.localPosition;
+        startComputerTakeDemageTextPos = computerTakeDemageText.transform.localPosition;
 
         StartGame();
     }
@@ -54,9 +70,15 @@ public class DiceBattleManager : MonoBehaviour
         playerResult = 0;
         computerResult = 0;
 
+        takeDemageTextTween?.Kill();
+        takeDemageTextTween = null;
+
         // HP Text 초기화
         UpdatePlayerHpText();
         UpdateComputerHpText();
+
+        // TakeDemageText 초기화
+        ResetTakeDemageText();
 
         // Result Text 초기화
         if (playerResultText != null)
@@ -105,6 +127,47 @@ public class DiceBattleManager : MonoBehaviour
             return;
 
         computerHpText.text = $"{computerCurrentHp}/{computerMaxHp}";
+    }
+
+    private void ResetTakeDemageText()
+    {
+        if (playerTakeDemageText != null)
+        {
+            playerTakeDemageText.transform.localPosition = startPlayerTakeDemageTextPos;
+            playerTakeDemageText.color = Color.clear;
+            playerTakeDemageText.text = string.Empty;
+        }
+
+        if (computerTakeDemageText != null)
+        {
+            computerTakeDemageText.transform.localPosition = startComputerTakeDemageTextPos;
+            computerTakeDemageText.color = Color.clear;
+            computerTakeDemageText.text = string.Empty;
+        }
+    }
+
+    private void PlayTakeDemageAnim(TMP_Text takeDemageText, Vector3 startPos, int takeDemage)
+    {
+        ResetTakeDemageText();
+
+        takeDemageText.color = Color.white;
+        takeDemageText.text = $"-{takeDemage}";
+
+        Vector3 targetPos = startPos + (Vector3.up * takeDemageMoveValue);
+
+        takeDemageTextTween?.Kill();
+        takeDemageTextTween = null;
+
+        takeDemageTextTween = DOTween.Sequence()
+            .Append(
+                takeDemageText.transform
+                    .DOLocalMove(targetPos, takeDemageTextDuration)
+                    .SetEase(takeDemageTextEase)
+            )
+            .Append(
+                takeDemageText
+                    .DOColor(Color.clear, takeDemageTextDuration)
+            );
     }
 
     private int GetCriticalMultiplier(int[] diceNubmers)
@@ -178,6 +241,7 @@ public class DiceBattleManager : MonoBehaviour
                 ResultBattle(true);
             }
 
+            PlayTakeDemageAnim(computerTakeDemageText, startComputerTakeDemageTextPos, demage);
             UpdateComputerHpText();
         }
         else if (playerResult < computerResult)
@@ -185,12 +249,13 @@ public class DiceBattleManager : MonoBehaviour
             int demage = computerResult - playerResult;
             playerCurrentHp -= demage;
 
-            if(playerCurrentHp <= 0)
+            if (playerCurrentHp <= 0)
             {
                 playerCurrentHp = 0;
                 ResultBattle(false);
             }
 
+            PlayTakeDemageAnim(playerTakeDemageText, startPlayerTakeDemageTextPos, demage);
             UpdatePlayerHpText();
         }
         else
