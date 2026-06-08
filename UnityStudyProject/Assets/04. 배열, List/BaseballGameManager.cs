@@ -1,27 +1,32 @@
-using Mono.Cecil.Cil;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using TMPro;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class BaseballGameManager : MonoBehaviour
 {
-    private const int MAX_BASEBALL_COUNT = 4;
+    private const int DEFAULT_MAX_NUMBER_COUNT = 4;
+
+    [Header("Game Rule")]
+    [SerializeField] private int numberCount = DEFAULT_MAX_NUMBER_COUNT;
 
     [Header("UI Panel")]
     [SerializeField] private GameObject inGameUI;
     [SerializeField] private GameObject resultUI;
 
     [Header("InGameUI")]
+
     [Header("Log Panel")]
     [SerializeField] private RectTransform logTextPanelContent;
-    [SerializeField] private LogTextPanel logTextPanel;
+    [SerializeField] private LogTextPanel logTextPanelPrefab;
 
-    [SerializeField] private TMP_Text[] previewTexts;
+    [Header("PreviewText Panel")]
+    [SerializeField] private RectTransform previewTextPanelContent;
+    [SerializeField] private PreviewTextPanel previewTextPanelPrefab;
+
+    [Header("Other")]
     [SerializeField] private TMP_Text turnCountText;
-
     [SerializeField] private Button enterButton;
 
     [Header("ResultUI")]
@@ -29,6 +34,9 @@ public class BaseballGameManager : MonoBehaviour
 
 
     private List<LogTextPanel> logTextPanels = new List<LogTextPanel>();
+    private List<PreviewTextPanel> previewTextPanels = new List<PreviewTextPanel>();
+
+    private string answerNumberText = string.Empty;
 
     private int[] answerNumbers;
     private int[] previewNumbers;
@@ -36,22 +44,23 @@ public class BaseballGameManager : MonoBehaviour
     private int turnCount;
     private int currentIndex;
 
+
     private void Start()
     {
-        if (previewTexts.Length < MAX_BASEBALL_COUNT)
+        if (!TryPreviewTextPanelsInitialized())
         {
-            Debug.LogError($"PreviewTexts�� ���� {MAX_BASEBALL_COUNT} ��ŭ �Ҵ���� �ʾҽ��ϴ�.");
+            Debug.LogError("PreviewTextPanels를 초기화 하는 과정 중 오류가 발생하였습니다.");
             return;
         }
 
-        if (logTextPanels == null)
-            logTextPanels = new List<LogTextPanel>();
+        if (!TryLogTextPanelsInitialized())
+        {
+            Debug.LogError("LogTextPanels를 초기화 하는 과정 중 오류가 발생하였습니다.");
+            return;
+        }
 
-        logTextPanels = logTextPanelContent.GetComponentsInChildren<LogTextPanel>().ToList();
-
-        answerNumbers = new int[MAX_BASEBALL_COUNT];
-        previewNumbers = new int[MAX_BASEBALL_COUNT];
-
+        answerNumbers = new int[numberCount];
+        previewNumbers = new int[numberCount];
         OnStartGame();
     }
 
@@ -73,35 +82,84 @@ public class BaseballGameManager : MonoBehaviour
     {
         currentIndex = 0;
 
-        for (int i = 0; i < MAX_BASEBALL_COUNT; i++)
+        for (int i = 0; i < numberCount; i++)
         {
             previewNumbers[i] = -1;
-            previewTexts[i].text = string.Empty;
+            previewTextPanels[i].ResetPreviewText();
         }
 
         turnCount++;
         turnCountText.text = $"Turn : {turnCount}";
     }
 
+    private bool TryPreviewTextPanelsInitialized()
+    {
+        if (previewTextPanelContent == null)
+        {
+            Debug.LogError("PreviewTextPanel을 추가할 Content 영역이 설정되지 않았습니다.");
+            return false;
+        }
+
+        if (previewTextPanelPrefab == null)
+        {
+            Debug.LogError("PreviewTextPanel Prefab이 없습니다.");
+            return false;
+        }
+
+        // Preview Text Panels 초기화
+        if (previewTextPanels == null)
+            previewTextPanels = new List<PreviewTextPanel>();
+
+        // numberCount 갯수 만큼 PreviewTextPanel 생성
+        for (int i = 0; i < numberCount; i++)
+        {
+            PreviewTextPanel newPreviewTextPanel = Instantiate(previewTextPanelPrefab, previewTextPanelContent);
+            newPreviewTextPanel.ResetPreviewText();
+            previewTextPanels.Add(newPreviewTextPanel);
+        }
+
+        return true;
+    }
+
+    private bool TryLogTextPanelsInitialized()
+    {
+        if (logTextPanelContent == null)
+        {
+            Debug.LogError("LogTextPanel을 추가할 Content 영역이 설정되지 않았습니다.");
+            return false;
+        }
+
+        if (logTextPanelPrefab = null)
+        {
+            Debug.LogError("LogTextPanel Prefab이 없습니다.");
+            return false;
+        }
+
+        if (logTextPanels == null)
+            logTextPanels = new List<LogTextPanel>();
+
+        logTextPanels = logTextPanelContent.GetComponentsInChildren<LogTextPanel>().ToList();
+        return true;
+    }
+
     private void UpdateAnswerNumbers()
     {
         List<int> answerList = new List<int>();
+        answerNumberText = string.Empty;
 
-        while (answerList.Count < 4)
+        while (answerList.Count < numberCount)
         {
             int randomNumber = Random.Range(0, 10);
 
             if (!answerList.Contains(randomNumber))
             {
+                answerNumberText += randomNumber.ToString();
                 answerList.Add(randomNumber);
             }
         }
 
         answerNumbers = answerList.ToArray();
-        for (int i = 0; i < answerNumbers.Length; i++)
-        {
-            Debug.Log(answerNumbers[i]);
-        }
+        Debug.Log("Answer : " + answerNumberText);
     }
 
     private void ResetLogTextPanels()
@@ -124,7 +182,7 @@ public class BaseballGameManager : MonoBehaviour
 
         if (turnCount >= logTextPanels.Count - 1)
         {
-            currentLogTextPanel = Instantiate(logTextPanel, logTextPanelContent);
+            currentLogTextPanel = Instantiate(logTextPanelPrefab, logTextPanelContent);
             currentLogTextPanel.gameObject.SetActive(false);
             logTextPanels.Add(currentLogTextPanel);
         }
@@ -139,19 +197,13 @@ public class BaseballGameManager : MonoBehaviour
 
     private void UpdateEnterButtonVisible()
     {
-        enterButton.interactable = (currentIndex == MAX_BASEBALL_COUNT);
+        enterButton.interactable = (currentIndex == numberCount);
     }
 
     private void UpdateResultUI()
     {
         inGameUI?.SetActive(false);
         resultUI?.SetActive(true);
-
-        string answerNumberText = null;
-        for (int i = 0; i < answerNumbers.Length; i++)
-        {
-            answerNumberText += answerNumbers[i];
-        }
 
         if (answerText != null)
         {
@@ -161,7 +213,7 @@ public class BaseballGameManager : MonoBehaviour
 
     private bool GetIsAnswer()
     {
-        for (int i = 0; i < MAX_BASEBALL_COUNT; i++)
+        for (int i = 0; i < numberCount; i++)
         {
             if (answerNumbers[i] != previewNumbers[i])
                 return false;
@@ -172,11 +224,11 @@ public class BaseballGameManager : MonoBehaviour
 
     public void OnClickNumber(int number)
     {
-        if (currentIndex >= previewTexts.Length)
+        if (currentIndex >= numberCount)
             return;
 
         previewNumbers[currentIndex] = number;
-        previewTexts[currentIndex].text = number.ToString();
+        previewTextPanels[currentIndex].UpdatePrivewText(number);
         currentIndex++;
 
         UpdateEnterButtonVisible();
@@ -189,7 +241,7 @@ public class BaseballGameManager : MonoBehaviour
 
         currentIndex--;
         previewNumbers[currentIndex] = -1;
-        previewTexts[currentIndex].text = string.Empty;
+        previewTextPanels[currentIndex].ResetPreviewText();
 
         UpdateEnterButtonVisible();
     }
@@ -212,9 +264,9 @@ public class BaseballGameManager : MonoBehaviour
             previewNumberText += previewNumbers[i].ToString();
         }
 
-        for (int i = 0; i < MAX_BASEBALL_COUNT; i++)
+        for (int i = 0; i < numberCount; i++)
         {
-            for (int j = 0; j < MAX_BASEBALL_COUNT; j++)
+            for (int j = 0; j < numberCount; j++)
             {
                 if (answerNumbers[i] == previewNumbers[i])
                 {
@@ -228,7 +280,7 @@ public class BaseballGameManager : MonoBehaviour
                     break;
                 }
 
-                if (j == MAX_BASEBALL_COUNT - 1)
+                if (j == numberCount - 1)
                 {
                     outCount++;
                 }
@@ -237,5 +289,10 @@ public class BaseballGameManager : MonoBehaviour
 
         UpdateLogTextPanel(previewNumberText, strikeCount, ballCount, outCount);
         NextTurn();
+    }
+
+    public void OnClickReStartButton()
+    {
+        OnStartGame();
     }
 }
